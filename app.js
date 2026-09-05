@@ -1,3 +1,4 @@
+
 const API = "/api";
 const NEWS_API = "/api/news";
 
@@ -61,10 +62,12 @@ function normalizeCandles(candles) {
     });
 }
 
-function lastClosed(candles) {
-  if (!candles.length) return null;
+function getClosedCandles(candles) {
+  return candles.filter(c => c.isOpen !== true);
+}
 
-  const closed = candles.filter(c => c.isOpen !== true);
+function lastClosed(candles) {
+  const closed = getClosedCandles(candles);
 
   if (closed.length) {
     return closed[closed.length - 1];
@@ -74,7 +77,17 @@ function lastClosed(candles) {
     return candles[candles.length - 2];
   }
 
-  return candles[0];
+  return candles[0] || null;
+}
+
+function previousClosed(candles) {
+  const closed = getClosedCandles(candles);
+
+  if (closed.length >= 2) {
+    return closed[closed.length - 2];
+  }
+
+  return null;
 }
 
 // ---------- MARKET DATA ----------
@@ -115,14 +128,7 @@ function getH4Structure(candles) {
   }
 
   const current = lastClosed(candles);
-
-  const previousClosed = candles
-    .filter(c => c !== current && c.isOpen !== true)
-    .slice(-2)[0];
-
-  const previous =
-    previousClosed ||
-    candles[candles.length - 3];
+  const previous = previousClosed(candles);
 
   if (!current || !previous) {
     return {
@@ -189,14 +195,7 @@ function getH1Bias(candles) {
   }
 
   const current = lastClosed(candles);
-
-  const previousClosed = candles
-    .filter(c => c !== current && c.isOpen !== true)
-    .slice(-2)[0];
-
-  const previous =
-    previousClosed ||
-    candles[candles.length - 3];
+  const previous = previousClosed(candles);
 
   if (!current || !previous) {
     return {
@@ -299,14 +298,7 @@ function getM5Trigger(candles, direction) {
   }
 
   const current = lastClosed(candles);
-
-  const previousClosed = candles
-    .filter(c => c !== current && c.isOpen !== true)
-    .slice(-2)[0];
-
-  const previous =
-    previousClosed ||
-    candles[candles.length - 3];
+  const previous = previousClosed(candles);
 
   if (!current || !previous) {
     return {
@@ -463,7 +455,7 @@ function calculateSignal(
     return {
       signal: "WAIT",
       reason:
-        "H4 and H1 bias do not agree"
+        `H4 ${h4.bias} / H1 ${h1.bias} — bias not aligned`
     };
   }
 
