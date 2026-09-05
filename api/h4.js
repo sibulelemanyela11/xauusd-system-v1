@@ -1,7 +1,7 @@
 export default async function handler(req, res) {
   try {
     const response = await fetch(
-      "https://api.frankfurter.app/latest?from=XAU&to=USD"
+      "https://biquote.io/api/XAUUSD/ohlc?interval=4h&limit=100"
     );
 
     const data = await response.json();
@@ -9,22 +9,21 @@ export default async function handler(req, res) {
     if (!response.ok) {
       return res.status(502).json({
         ok: false,
-        error: "Market data source unavailable"
+        error: "H4 market data unavailable"
       });
     }
 
     return res.status(200).json({
       ok: true,
       timeframe: "H4",
-      source: "XAUUSD",
-      price: data.rates?.USD ?? null,
+      symbol: "XAUUSD",
       data
     });
 
   } catch (error) {
     return res.status(500).json({
       ok: false,
-      error: "Could not retrieve XAUUSD market data"
+      error: "Could not retrieve XAUUSD H4 data"
     });
   }
 }
