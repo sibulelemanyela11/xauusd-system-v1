@@ -18,9 +18,21 @@ function num(value) {
 function getCandles(payload) {
   const data = payload?.data;
 
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.data)) return data.data;
-  if (Array.isArray(data?.candles)) return data.candles;
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (Array.isArray(data?.bars)) {
+    return data.bars;
+  }
+
+  if (Array.isArray(data?.data)) {
+    return data.data;
+  }
+
+  if (Array.isArray(data?.candles)) {
+    return data.candles;
+  }
 
   return [];
 }
@@ -32,7 +44,8 @@ function normalizeCandles(candles) {
       high: num(c.high ?? c.h),
       low: num(c.low ?? c.l),
       close: num(c.close ?? c.c),
-      time: c.time ?? c.timestamp ?? c.t
+      time: c.openTime ?? c.time ?? c.timestamp ?? c.t,
+      isOpen: c.isOpen
     }))
     .filter(
       c =>
@@ -49,10 +62,14 @@ function normalizeCandles(candles) {
 }
 
 function lastClosed(candles) {
-  if (candles.length === 0) return null;
+  if (!candles.length) return null;
 
-  // If we have multiple candles, use the previous candle.
-  // This avoids using a currently forming candle.
+  const closed = candles.filter(c => c.isOpen !== true);
+
+  if (closed.length) {
+    return closed[closed.length - 1];
+  }
+
   if (candles.length > 1) {
     return candles[candles.length - 2];
   }
@@ -70,12 +87,12 @@ async function getMarketData() {
     fetch(`${API}/m5`)
   ]);
 
-  if (responses.some(r => !r.ok)) {
+  if (responses.some(response => !response.ok)) {
     throw new Error("Market data unavailable");
   }
 
   const data = await Promise.all(
-    responses.map(r => r.json())
+    responses.map(response => response.json())
   );
 
   return {
@@ -98,7 +115,14 @@ function getH4Structure(candles) {
   }
 
   const current = lastClosed(candles);
-  const previous = candles[candles.length - 3];
+
+  const previousClosed = candles
+    .filter(c => c !== current && c.isOpen !== true)
+    .slice(-2)[0];
+
+  const previous =
+    previousClosed ||
+    candles[candles.length - 3];
 
   if (!current || !previous) {
     return {
@@ -165,7 +189,14 @@ function getH1Bias(candles) {
   }
 
   const current = lastClosed(candles);
-  const previous = candles[candles.length - 3];
+
+  const previousClosed = candles
+    .filter(c => c !== current && c.isOpen !== true)
+    .slice(-2)[0];
+
+  const previous =
+    previousClosed ||
+    candles[candles.length - 3];
 
   if (!current || !previous) {
     return {
@@ -232,7 +263,7 @@ function getM15Setup(candles, direction) {
   if (
     direction === "BUY" &&
     current.close > current.open &&
-    bodyRatio >= 0.40
+    bodyRatio >= 0.4
   ) {
     return {
       status: "PASS",
@@ -243,7 +274,7 @@ function getM15Setup(candles, direction) {
   if (
     direction === "SELL" &&
     current.close < current.open &&
-    bodyRatio >= 0.40
+    bodyRatio >= 0.4
   ) {
     return {
       status: "PASS",
@@ -268,7 +299,14 @@ function getM5Trigger(candles, direction) {
   }
 
   const current = lastClosed(candles);
-  const previous = candles[candles.length - 3];
+
+  const previousClosed = candles
+    .filter(c => c !== current && c.isOpen !== true)
+    .slice(-2)[0];
+
+  const previous =
+    previousClosed ||
+    candles[candles.length - 3];
 
   if (!current || !previous) {
     return {
@@ -357,7 +395,9 @@ async function getNewsStatus() {
     if (data.blocked) {
       return {
         status: "BLOCK",
-        reason: data.reason || "High-impact news block"
+        reason:
+          data.reason ||
+          "High-impact news block"
       };
     }
 
@@ -379,13 +419,18 @@ async function getNewsStatus() {
 function getRiskStatus() {
   return {
     status: "PASS",
-    reason: `${rules.risk}% risk / max ${rules.maxTrades} trades`
+    reason:
+      `${rules.risk}% risk / max ${rules.maxTrades} trades`
   };
 }
 
 // ---------- SIGNAL ENGINE ----------
 
-function calculateSignal(market, news, session) {
+function calculateSignal(
+  market,
+  news,
+  session
+) {
   if (session.status !== "PASS") {
     return {
       signal: "WAIT",
@@ -417,7 +462,8 @@ function calculateSignal(market, news, session) {
   ) {
     return {
       signal: "WAIT",
-      reason: "H4 and H1 bias do not agree"
+      reason:
+        "H4 and H1 bias do not agree"
     };
   }
 
@@ -447,14 +493,20 @@ function calculateSignal(market, news, session) {
 
   return {
     signal: h4.bias,
-    reason: `${h4.bias} confirmed: H4 → H1 → M15 → M5`
+    reason:
+      `${h4.bias} confirmed: H4 → H1 → M15 → M5`
   };
 }
 
 // ---------- DISPLAY ----------
 
-function render(checks, signal, reason) {
-  const box = document.getElementById("checks");
+function render(
+  checks,
+  signal,
+  reason
+) {
+  const box =
+    document.getElementById("checks");
 
   box.innerHTML = checks
     .map(
@@ -463,38 +515,55 @@ function render(checks, signal, reason) {
     )
     .join("");
 
-  document.getElementById("signal").textContent =
-    signal;
+  document.getElementById(
+    "signal"
+  ).textContent = signal;
 
-  document.getElementById("reason").textContent =
-    reason;
+  document.getElementById(
+    "reason"
+  ).textContent = reason;
 }
 
 // ---------- MAIN ----------
 
 async function run() {
   try {
-    const market = await getMarketData();
-    const news = await getNewsStatus();
-    const session = getSessionStatus();
-    const risk = getRiskStatus();
+    const market =
+      await getMarketData();
 
-    const h4 = getH4Structure(market.h4);
-    const h1 = getH1Bias(market.h1);
-    const m15 = getM15Setup(
-      market.m15,
-      h4.bias
-    );
-    const m5 = getM5Trigger(
-      market.m5,
-      h4.bias
-    );
+    const news =
+      await getNewsStatus();
 
-    const result = calculateSignal(
-      market,
-      news,
-      session
-    );
+    const session =
+      getSessionStatus();
+
+    const risk =
+      getRiskStatus();
+
+    const h4 =
+      getH4Structure(market.h4);
+
+    const h1 =
+      getH1Bias(market.h1);
+
+    const m15 =
+      getM15Setup(
+        market.m15,
+        h4.bias
+      );
+
+    const m5 =
+      getM5Trigger(
+        market.m5,
+        h4.bias
+      );
+
+    const result =
+      calculateSignal(
+        market,
+        news,
+        session
+      );
 
     const checks = [
       ["H4 Structure", h4.status],
