@@ -1,0 +1,13 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>XAUUSD System V1</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<header><h1>XAUUSD SYSTEM <span>V1</span></h1><p>Gold-only decision engine</p></header>
+<main>
+<section class="hero"><div><small>SIGNAL</small><strong id="signal">WAIT</strong><p id="reason">No live market feed connected.</p></div>
+<div class="grid" id="checks"></div></section>
+<section><h2>Trade Guard</h2><div class="cards"><div>Risk <b>0.5%</b></div><div>Min R:R <b>1:2</b></div><div>Max trades <b>2/day</b></div><div>Daily loss <b>1.5%</b></div></div></section>
+<section><h2>System Rules</h2><ul><li>H4 structure → H1 bias → M15 setup → M5 trigger</li><li>Closed candles only. No repainting.</li><li>High-impact news can block a trade.</li><li>Two losses = stop for the day.</li><li>Risk engine has final veto.</li></ul></section>
+<button onclick="location.reload()">Refresh</button>
+</main><footer>V1 is a signal/dashboard layer. Live MT4 execution requires a supported bridge.</footer>
+<script src="app.js"></script></body></html>
