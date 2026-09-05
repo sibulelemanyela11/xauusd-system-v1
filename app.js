@@ -7,32 +7,17 @@ const rules = {
   rr: 2
 };
 
-function candles(data) {
-  const r = data.chart.result[0];
-  const q = r.indicators.quote[0];
+function getGoldPrice(data) {
+  const result = data?.data;
 
-  return r.timestamp
-    .map((time, i) => ({
-      time,
-      open: q.open[i],
-      high: q.high[i],
-      low: q.low[i],
-      close: q.close[i]
-    }))
-    .filter(c => c.close != null);
-}
+  if (!result) return null;
 
-function trend(c) {
-  if (c.length < 20) return "WAIT";
+  // Alpha Vantage GOLD_SILVER_SPOT response
+  if (result.price) {
+    return Number(result.price);
+  }
 
-  const recent = c.slice(-20);
-  const first = recent[0].close;
-  const last = recent[recent.length - 1].close;
-
-  if (last > first) return "BULLISH";
-  if (last < first) return "BEARISH";
-
-  return "WAIT";
+  return null;
 }
 
 function render(status, signal, reason) {
@@ -62,34 +47,32 @@ async function run() {
     const response = await fetch(API);
 
     if (!response.ok) {
-      throw new Error("Market feed unavailable");
+      throw new Error("API unavailable");
     }
 
     const data = await response.json();
 
-    if (!data.ok || !data.data) {
-      throw new Error("Invalid market data");
+    if (!data.ok) {
+      throw new Error("Gold API error");
     }
 
-    const c = candles(data.data);
+    const price = getGoldPrice(data);
 
-    if (!c.length) {
-      throw new Error("No Gold candles received");
+    if (!price) {
+      throw new Error("Gold price not found");
     }
-
-    const direction = trend(c);
 
     render(
-      "CHECK",
+      "CONNECTED",
       "WAIT",
-      `Gold feed connected. Current structure: ${direction}. Full H4/H1/M15/M5 confirmation is required before a trade.`
+      `Live Gold feed connected. XAU/USD: ${price}`
     );
 
   } catch (error) {
     render(
       "WAIT",
       "WAIT",
-      "Live Gold market feed unavailable."
+      "Live market feed unavailable."
     );
   }
 }
