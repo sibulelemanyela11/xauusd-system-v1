@@ -1,6 +1,5 @@
 const API =
-  "https://query1.finance.yahoo.com/v8/finance/chart/GC=F?interval=5m&range=5d";
-
+  "/api/gold";
 const rules = {
   risk: 0.5,
   maxTrades: 2,
