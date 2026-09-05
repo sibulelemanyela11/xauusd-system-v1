@@ -1,22 +1,11 @@
-const API =
-  "/api/gold";
+const API = "/api/gold";
+
 const rules = {
   risk: 0.5,
   maxTrades: 2,
   dailyLoss: 1.5,
   rr: 2
 };
-
-const names = [
-  "H4 Structure",
-  "H1 Bias",
-  "M15 Setup",
-  "M5 Trigger",
-  "Session",
-  "News Filter",
-  "Risk Engine",
-  "R:R"
-];
 
 function candles(data) {
   const r = data.chart.result[0];
@@ -34,12 +23,15 @@ function candles(data) {
 }
 
 function trend(c) {
+  if (c.length < 20) return "WAIT";
+
   const recent = c.slice(-20);
   const first = recent[0].close;
   const last = recent[recent.length - 1].close;
 
   if (last > first) return "BULLISH";
   if (last < first) return "BEARISH";
+
   return "WAIT";
 }
 
@@ -68,23 +60,37 @@ function render(status, signal, reason) {
 async function run() {
   try {
     const response = await fetch(API);
-    if (!response.ok) throw new Error("Market feed unavailable");
+
+    if (!response.ok) {
+      throw new Error("Market feed unavailable");
+    }
 
     const data = await response.json();
-    const c = candles(data);
+
+    if (!data.ok || !data.data) {
+      throw new Error("Invalid market data");
+    }
+
+    const c = candles(data.data);
+
+    if (!c.length) {
+      throw new Error("No Gold candles received");
+    }
+
     const direction = trend(c);
 
-    if (direction === "BULLISH") {
-      render("CHECK", "WAIT",
-        "Gold data received. H4/H1/M15/M5 confirmation required.");
-    } else if (direction === "BEARISH") {
-      render("CHECK", "WAIT",
-        "Gold data received. H4/H1/M15/M5 confirmation required.");
-    } else {
-      render("WAIT", "WAIT", "Market structure unclear.");
-    }
+    render(
+      "CHECK",
+      "WAIT",
+      `Gold feed connected. Current structure: ${direction}. Full H4/H1/M15/M5 confirmation is required before a trade.`
+    );
+
   } catch (error) {
-    render("WAIT", "WAIT", "Live market feed unavailable.");
+    render(
+      "WAIT",
+      "WAIT",
+      "Live Gold market feed unavailable."
+    );
   }
 }
 
