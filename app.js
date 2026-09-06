@@ -1,4 +1,3 @@
-
 const API = "/api";
 const NEWS_API = "/api/news";
 
@@ -406,9 +405,78 @@ async function getNewsStatus() {
   }
 }
 
+// ---------- QUOTE ----------
+
+async function getQuoteStatus() {
+  try {
+    const response = await fetch(`${API}/quote`);
+
+    if (!response.ok) {
+      return {
+        status: "BLOCK",
+        reason: "Quote feed unavailable"
+      };
+    }
+
+    const quote = await response.json();
+
+    if (!quote.ok) {
+      return {
+        status: "BLOCK",
+        reason: quote.reason || "Quote feed unavailable"
+      };
+    }
+
+    if (quote.stale === true) {
+      return {
+        status: "BLOCK",
+        reason: "Market quote is stale"
+      };
+    }
+
+    if (quote.marketState !== "open") {
+      return {
+        status: "BLOCK",
+        reason: `Market is ${quote.marketState}`
+      };
+    }
+
+    if (
+      !Number.isFinite(Number(quote.bid)) ||
+      !Number.isFinite(Number(quote.ask)) ||
+      !Number.isFinite(Number(quote.spread))
+    ) {
+      return {
+        status: "BLOCK",
+        reason: "Invalid market quote"
+      };
+    }
+
+    return {
+      status: "PASS",
+      reason: `Spread ${quote.spread}`
+    };
+
+  } catch (error) {
+    return {
+      status: "BLOCK",
+      reason: "Quote filter unavailable"
+    };
+  }
+}
+
 // ---------- RISK ----------
 
-function getRiskStatus() {
+function getRiskStatus(quoteStatus) {
+  if (!quoteStatus || quoteStatus.status !== "PASS") {
+    return {
+      status: "BLOCK",
+      reason:
+        quoteStatus?.reason ||
+        "Quote filter blocked"
+    };
+  }
+
   return {
     status: "PASS",
     reason:
@@ -421,7 +489,8 @@ function getRiskStatus() {
 function calculateSignal(
   market,
   news,
-  session
+  session,
+  risk
 ) {
   if (session.status !== "PASS") {
     return {
@@ -434,6 +503,13 @@ function calculateSignal(
     return {
       signal: "WAIT",
       reason: news.reason
+    };
+  }
+
+  if (risk.status !== "PASS") {
+    return {
+      signal: "WAIT",
+      reason: risk.reason
     };
   }
 
@@ -529,8 +605,11 @@ async function run() {
     const session =
       getSessionStatus();
 
+    const quote =
+      await getQuoteStatus();
+
     const risk =
-      getRiskStatus();
+      getRiskStatus(quote);
 
     const h4 =
       getH4Structure(market.h4);
@@ -554,7 +633,8 @@ async function run() {
       calculateSignal(
         market,
         news,
-        session
+        session,
+        risk
       );
 
     const checks = [
