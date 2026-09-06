@@ -18,21 +18,10 @@ function num(value) {
 function getCandles(payload) {
   const data = payload?.data;
 
-  if (Array.isArray(data)) {
-    return data;
-  }
-
-  if (Array.isArray(data?.bars)) {
-    return data.bars;
-  }
-
-  if (Array.isArray(data?.data)) {
-    return data.data;
-  }
-
-  if (Array.isArray(data?.candles)) {
-    return data.candles;
-  }
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.bars)) return data.bars;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.candles)) return data.candles;
 
   return [];
 }
@@ -87,6 +76,91 @@ function previousClosed(candles) {
   }
 
   return null;
+}
+
+// ---------- DAILY RISK STATE ----------
+
+function getTodayKey() {
+  const now = new Date();
+
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Africa/Johannesburg"
+  }).format(now);
+}
+
+function getRiskState() {
+  const today = getTodayKey();
+
+  try {
+    const saved = JSON.parse(
+      localStorage.getItem("xauusdRiskState") || "null"
+    );
+
+    if (!saved || saved.date !== today) {
+      return {
+        date: today,
+        trades: 0,
+        losses: 0,
+        dailyLossPercent: 0
+      };
+    }
+
+    return saved;
+  } catch {
+    return {
+      date: today,
+      trades: 0,
+      losses: 0,
+      dailyLossPercent: 0
+    };
+  }
+}
+
+function saveRiskState(state) {
+  localStorage.setItem(
+    "xauusdRiskState",
+    JSON.stringify(state)
+  );
+}
+
+function getRiskStatus(quoteStatus) {
+  if (!quoteStatus || quoteStatus.status !== "PASS") {
+    return {
+      status: "BLOCK",
+      reason:
+        quoteStatus?.reason ||
+        "Quote filter blocked"
+    };
+  }
+
+  const state = getRiskState();
+
+  if (state.trades >= rules.maxTrades) {
+    return {
+      status: "BLOCK",
+      reason: "Maximum 2 trades reached today"
+    };
+  }
+
+  if (state.dailyLossPercent >= rules.dailyLoss) {
+    return {
+      status: "BLOCK",
+      reason: "Daily loss limit reached"
+    };
+  }
+
+  if (state.losses >= 2) {
+    return {
+      status: "BLOCK",
+      reason: "Two losses reached — trading stopped"
+    };
+  }
+
+  return {
+    status: "PASS",
+    reason:
+      `${rules.risk}% risk / ${state.trades}/${rules.maxTrades} trades`
+  };
 }
 
 // ---------- MARKET DATA ----------
@@ -255,7 +329,10 @@ function getM15Setup(candles, direction) {
     };
   }
 
-  const body = Math.abs(current.close - current.open);
+  const body = Math.abs(
+    current.close - current.open
+  );
+
   const bodyRatio = body / range;
 
   if (
@@ -423,7 +500,9 @@ async function getQuoteStatus() {
     if (!quote.ok) {
       return {
         status: "BLOCK",
-        reason: quote.reason || "Quote feed unavailable"
+        reason:
+          quote.reason ||
+          "Quote feed unavailable"
       };
     }
 
@@ -437,7 +516,8 @@ async function getQuoteStatus() {
     if (quote.marketState !== "open") {
       return {
         status: "BLOCK",
-        reason: `Market is ${quote.marketState}`
+        reason:
+          `Market is ${quote.marketState}`
       };
     }
 
@@ -454,7 +534,8 @@ async function getQuoteStatus() {
 
     return {
       status: "PASS",
-      reason: `Spread ${quote.spread}`
+      reason:
+        `Spread ${quote.spread}`
     };
 
   } catch (error) {
@@ -465,22 +546,29 @@ async function getQuoteStatus() {
   }
 }
 
-// ---------- RISK ----------
+// ---------- RISK CALCULATION ----------
 
-function getRiskStatus(quoteStatus) {
-  if (!quoteStatus || quoteStatus.status !== "PASS") {
+function calculateRisk(balance) {
+  const accountBalance = Number(balance);
+
+  if (
+    !Number.isFinite(accountBalance) ||
+    accountBalance <= 0
+  ) {
     return {
-      status: "BLOCK",
-      reason:
-        quoteStatus?.reason ||
-        "Quote filter blocked"
+      status: "WAIT",
+      reason: "Account balance unavailable"
     };
   }
 
+  const riskAmount =
+    accountBalance *
+    (rules.risk / 100);
+
   return {
     status: "PASS",
-    reason:
-      `${rules.risk}% risk / max ${rules.maxTrades} trades`
+    balance: accountBalance,
+    riskAmount
   };
 }
 
@@ -513,7 +601,8 @@ function calculateSignal(
     };
   }
 
-  const h4 = getH4Structure(market.h4);
+  const h4 =
+    getH4Structure(market.h4);
 
   if (h4.status !== "PASS") {
     return {
@@ -522,7 +611,8 @@ function calculateSignal(
     };
   }
 
-  const h1 = getH1Bias(market.h1);
+  const h1 =
+    getH1Bias(market.h1);
 
   if (
     h1.status !== "PASS" ||
@@ -535,10 +625,11 @@ function calculateSignal(
     };
   }
 
-  const m15 = getM15Setup(
-    market.m15,
-    h4.bias
-  );
+  const m15 =
+    getM15Setup(
+      market.m15,
+      h4.bias
+    );
 
   if (m15.status !== "PASS") {
     return {
@@ -547,10 +638,11 @@ function calculateSignal(
     };
   }
 
-  const m5 = getM5Trigger(
-    market.m5,
-    h4.bias
-  );
+  const m5 =
+    getM5Trigger(
+      market.m5,
+      h4.bias
+    );
 
   if (m5.status !== "PASS") {
     return {
@@ -645,7 +737,7 @@ async function run() {
       ["Session", session.status],
       ["News Filter", news.status],
       ["Risk Engine", risk.status],
-      ["R:R", "PASS"]
+      ["R:R", `1:${rules.rr}`]
     ];
 
     render(
