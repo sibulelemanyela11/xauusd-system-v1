@@ -5,7 +5,8 @@ const rules = {
   risk: 0.5,
   maxTrades: 2,
   dailyLoss: 1.5,
-  rr: 2
+  rr: 2,
+  swingLookback: 20
 };
 
 // ---------- HELPERS ----------
@@ -57,13 +58,8 @@ function getClosedCandles(candles) {
 function lastClosed(candles) {
   const closed = getClosedCandles(candles);
 
-  if (closed.length) {
-    return closed[closed.length - 1];
-  }
-
-  if (candles.length > 1) {
-    return candles[candles.length - 2];
-  }
+  if (closed.length) return closed[closed.length - 1];
+  if (candles.length > 1) return candles[candles.length - 2];
 
   return candles[0] || null;
 }
@@ -81,11 +77,9 @@ function previousClosed(candles) {
 // ---------- DAILY RISK STATE ----------
 
 function getTodayKey() {
-  const now = new Date();
-
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Africa/Johannesburg"
-  }).format(now);
+  }).format(new Date());
 }
 
 function getRiskState() {
@@ -116,53 +110,6 @@ function getRiskState() {
   }
 }
 
-function saveRiskState(state) {
-  localStorage.setItem(
-    "xauusdRiskState",
-    JSON.stringify(state)
-  );
-}
-
-function getRiskStatus(quoteStatus) {
-  if (!quoteStatus || quoteStatus.status !== "PASS") {
-    return {
-      status: "BLOCK",
-      reason:
-        quoteStatus?.reason ||
-        "Quote filter blocked"
-    };
-  }
-
-  const state = getRiskState();
-
-  if (state.trades >= rules.maxTrades) {
-    return {
-      status: "BLOCK",
-      reason: "Maximum 2 trades reached today"
-    };
-  }
-
-  if (state.dailyLossPercent >= rules.dailyLoss) {
-    return {
-      status: "BLOCK",
-      reason: "Daily loss limit reached"
-    };
-  }
-
-  if (state.losses >= 2) {
-    return {
-      status: "BLOCK",
-      reason: "Two losses reached — trading stopped"
-    };
-  }
-
-  return {
-    status: "PASS",
-    reason:
-      `${rules.risk}% risk / ${state.trades}/${rules.maxTrades} trades`
-  };
-}
-
 // ---------- MARKET DATA ----------
 
 async function getMarketData() {
@@ -173,12 +120,12 @@ async function getMarketData() {
     fetch(`${API}/m5`)
   ]);
 
-  if (responses.some(response => !response.ok)) {
+  if (responses.some(r => !r.ok)) {
     throw new Error("Market data unavailable");
   }
 
   const data = await Promise.all(
-    responses.map(response => response.json())
+    responses.map(r => r.json())
   );
 
   return {
@@ -329,11 +276,8 @@ function getM15Setup(candles, direction) {
     };
   }
 
-  const body = Math.abs(
-    current.close - current.open
-  );
-
-  const bodyRatio = body / range;
+  const bodyRatio =
+    Math.abs(current.close - current.open) / range;
 
   if (
     direction === "BUY" &&
@@ -411,17 +355,163 @@ function getM5Trigger(candles, direction) {
   };
 }
 
+// ---------- STRUCTURE STOP ----------
+
+function findStructureStop(candles, direction) {
+  const closed = getClosedCandles(candles);
+
+  if (closed.length < 5) {
+    return null;
+  }
+
+  const usable = closed.slice(
+    -rules.swingLookback
+  );
+
+  if (usable.length < 5) {
+    return null;
+  }
+
+  for (let i = usable.length - 2; i >= 2; i--) {
+    const c = usable[i];
+
+    const left1 = usable[i - 1];
+    const left2 = usable[i - 2];
+
+    const right1 = usable[i + 1];
+    const right2 = usable[i + 2];
+
+    if (direction === "BUY") {
+      const isSwingLow =
+        c.low < left1.low &&
+        c.low < left2.low &&
+        c.low <= right1.low &&
+        c.low <= right2.low;
+
+      if (isSwingLow) {
+        return c.low;
+      }
+    }
+
+    if (direction === "SELL") {
+      const isSwingHigh =
+        c.high > left1.high &&
+        c.high > left2.high &&
+        c.high >= right1.high &&
+        c.high >= right2.high;
+
+      if (isSwingHigh) {
+        return c.high;
+      }
+    }
+  }
+
+  return null;
+}
+
+// ---------- SL / TP ----------
+
+function calculateTradeLevels(
+  m5Candles,
+  direction,
+  quote
+) {
+  const entry =
+    direction === "BUY"
+      ? num(quote.ask)
+      : num(quote.bid);
+
+  if (!Number.isFinite(entry)) {
+    return {
+      status: "WAIT",
+      reason: "Entry price unavailable"
+    };
+  }
+
+  const structureStop =
+    findStructureStop(
+      m5Candles,
+      direction
+    );
+
+  if (!Number.isFinite(structureStop)) {
+    return {
+      status: "WAIT",
+      reason: "No confirmed M5 structure for SL"
+    };
+  }
+
+  let stopLoss;
+  let takeProfit;
+
+  if (direction === "BUY") {
+    stopLoss = structureStop;
+
+    if (stopLoss >= entry) {
+      return {
+        status: "WAIT",
+        reason: "BUY structure SL is invalid"
+      };
+    }
+
+    const riskDistance =
+      entry - stopLoss;
+
+    takeProfit =
+      entry +
+      riskDistance * rules.rr;
+  }
+
+  if (direction === "SELL") {
+    stopLoss = structureStop;
+
+    if (stopLoss <= entry) {
+      return {
+        status: "WAIT",
+        reason: "SELL structure SL is invalid"
+      };
+    }
+
+    const riskDistance =
+      stopLoss - entry;
+
+    takeProfit =
+      entry -
+      riskDistance * rules.rr;
+  }
+
+  const riskDistance =
+    Math.abs(entry - stopLoss);
+
+  if (
+    !Number.isFinite(riskDistance) ||
+    riskDistance <= 0
+  ) {
+    return {
+      status: "WAIT",
+      reason: "Invalid risk distance"
+    };
+  }
+
+  return {
+    status: "PASS",
+    entry,
+    stopLoss,
+    takeProfit,
+    riskDistance,
+    rr: rules.rr
+  };
+}
+
 // ---------- SESSION ----------
 
 function getSessionStatus() {
-  const now = new Date();
-
   const hour = Number(
     new Intl.DateTimeFormat("en-ZA", {
       timeZone: "Africa/Johannesburg",
       hour: "2-digit",
       hour12: false
-    }).format(now)
+    }).format(new Date())
   );
 
   const london = hour >= 9 && hour < 18;
@@ -474,7 +564,7 @@ async function getNewsStatus() {
       reason: "No high-impact news block"
     };
 
-  } catch (error) {
+  } catch {
     return {
       status: "BLOCK",
       reason: "News filter unavailable"
@@ -486,7 +576,8 @@ async function getNewsStatus() {
 
 async function getQuoteStatus() {
   try {
-    const response = await fetch(`${API}/quote`);
+    const response =
+      await fetch(`${API}/quote`);
 
     if (!response.ok) {
       return {
@@ -495,7 +586,8 @@ async function getQuoteStatus() {
       };
     }
 
-    const quote = await response.json();
+    const quote =
+      await response.json();
 
     if (!quote.ok) {
       return {
@@ -535,10 +627,11 @@ async function getQuoteStatus() {
     return {
       status: "PASS",
       reason:
-        `Spread ${quote.spread}`
+        `Spread ${quote.spread}`,
+      quote
     };
 
-  } catch (error) {
+  } catch {
     return {
       status: "BLOCK",
       reason: "Quote filter unavailable"
@@ -546,29 +639,52 @@ async function getQuoteStatus() {
   }
 }
 
-// ---------- RISK CALCULATION ----------
+// ---------- RISK ----------
 
-function calculateRisk(balance) {
-  const accountBalance = Number(balance);
-
+function getRiskStatus(quoteStatus) {
   if (
-    !Number.isFinite(accountBalance) ||
-    accountBalance <= 0
+    !quoteStatus ||
+    quoteStatus.status !== "PASS"
   ) {
     return {
-      status: "WAIT",
-      reason: "Account balance unavailable"
+      status: "BLOCK",
+      reason:
+        quoteStatus?.reason ||
+        "Quote filter blocked"
     };
   }
 
-  const riskAmount =
-    accountBalance *
-    (rules.risk / 100);
+  const state = getRiskState();
+
+  if (state.trades >= rules.maxTrades) {
+    return {
+      status: "BLOCK",
+      reason: "Maximum 2 trades reached today"
+    };
+  }
+
+  if (
+    state.dailyLossPercent >=
+    rules.dailyLoss
+  ) {
+    return {
+      status: "BLOCK",
+      reason: "Daily loss limit reached"
+    };
+  }
+
+  if (state.losses >= 2) {
+    return {
+      status: "BLOCK",
+      reason:
+        "Two losses reached — trading stopped"
+    };
+  }
 
   return {
     status: "PASS",
-    balance: accountBalance,
-    riskAmount
+    reason:
+      `${rules.risk}% risk / ${state.trades}/${rules.maxTrades} trades`
   };
 }
 
@@ -578,7 +694,8 @@ function calculateSignal(
   market,
   news,
   session,
-  risk
+  risk,
+  quote
 ) {
   if (session.status !== "PASS") {
     return {
@@ -651,10 +768,28 @@ function calculateSignal(
     };
   }
 
+  const levels =
+    calculateTradeLevels(
+      market.m5,
+      h4.bias,
+      quote
+    );
+
+  if (levels.status !== "PASS") {
+    return {
+      signal: "WAIT",
+      reason: levels.reason
+    };
+  }
+
   return {
     signal: h4.bias,
     reason:
-      `${h4.bias} confirmed: H4 → H1 → M15 → M5`
+      `${h4.bias} confirmed: H4 → H1 → M15 → M5 | ` +
+      `Entry ${levels.entry.toFixed(3)} | ` +
+      `SL ${levels.stopLoss.toFixed(3)} | ` +
+      `TP ${levels.takeProfit.toFixed(3)} | ` +
+      `R:R 1:${levels.rr}`
   };
 }
 
@@ -697,11 +832,23 @@ async function run() {
     const session =
       getSessionStatus();
 
-    const quote =
+    const quoteStatus =
       await getQuoteStatus();
 
     const risk =
-      getRiskStatus(quote);
+      getRiskStatus(quoteStatus);
+
+    const quote =
+      quoteStatus.quote || null;
+
+    const result =
+      calculateSignal(
+        market,
+        news,
+        session,
+        risk,
+        quote
+      );
 
     const h4 =
       getH4Structure(market.h4);
@@ -721,13 +868,17 @@ async function run() {
         h4.bias
       );
 
-    const result =
-      calculateSignal(
-        market,
-        news,
-        session,
-        risk
-      );
+    const levels =
+      quoteStatus.status === "PASS"
+        ? calculateTradeLevels(
+            market.m5,
+            h4.bias,
+            quote
+          )
+        : {
+            status: "WAIT",
+            reason: "Quote blocked"
+          };
 
     const checks = [
       ["H4 Structure", h4.status],
@@ -737,7 +888,16 @@ async function run() {
       ["Session", session.status],
       ["News Filter", news.status],
       ["Risk Engine", risk.status],
-      ["R:R", `1:${rules.rr}`]
+      [
+        "SL / TP",
+        levels.status
+      ],
+      [
+        "R:R",
+        levels.status === "PASS"
+          ? `1:${rules.rr}`
+          : "WAIT"
+      ]
     ];
 
     render(
@@ -758,6 +918,7 @@ async function run() {
         ["Session", "CHECK"],
         ["News Filter", "CHECK"],
         ["Risk Engine", "WAIT"],
+        ["SL / TP", "WAIT"],
         ["R:R", "WAIT"]
       ],
       "WAIT",
