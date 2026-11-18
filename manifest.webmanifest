@@ -1,7 +1,7 @@
 {
-  "name": "XAUUSD Gold Signal Engine",
-  "short_name": "Gold Engine",
-  "description": "Gold-only trading signal dashboard",
+  "name": "Gold Signals | XAUUSD",
+  "short_name": "Gold Signals",
+  "description": "XAUUSD market signals, trade setup checks and risk limits.",
   "start_url": "/index.html",
   "scope": "/",
   "display": "standalone",
