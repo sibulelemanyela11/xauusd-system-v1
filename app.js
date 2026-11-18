@@ -927,6 +927,6 @@ async function run() {
   }
 }
 
+window.addEventListener('xau-manual-scan', run);
 run();
-
 setInterval(run, 60000);
