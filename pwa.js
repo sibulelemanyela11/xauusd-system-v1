@@ -14,7 +14,7 @@ if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.se
 document.getElementById("refresh")?.addEventListener("click",()=>{const b=document.getElementById("refresh");b.disabled=true;b.textContent="Scanning…";window.dispatchEvent(new Event("xau-manual-scan"));setTimeout(()=>{b.disabled=false;b.textContent="Scan now";},4000);});
 const alertButton=document.getElementById("enable-alerts");
 function refreshAlertLabel(){if(!alertButton)return;alertButton.textContent=Notification.permission==="granted"?"Alerts enabled":Notification.permission==="denied"?"Alerts blocked":"Enable alerts";}
-if("Notification" in window){refreshAlertLabel();alertButton?.addEventListener("click",async()=>{const permission=await Notification.requestPermission();refreshAlertLabel();if(permission==="granted")new Notification("Gold Signal Engine",{body:"Notifications enabled. Keep the app open for live scans."});});}else if(alertButton){alertButton.textContent="Alerts unsupported";alertButton.disabled=true;}
+if("Notification" in window){refreshAlertLabel();alertButton?.addEventListener("click",async()=>{const permission=await Notification.requestPermission();refreshAlertLabel();if(permission==="granted")new Notification("Gold Signals",{body:"Notifications enabled. Keep the app open for live scans."});});}else if(alertButton){alertButton.textContent="Alerts unsupported";alertButton.disabled=true;}
 let previousSignal=null;
 window.addEventListener("xau-signal",event=>{
   const signal=event.detail?.signal;
