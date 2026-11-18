@@ -806,7 +806,7 @@ function render(
   box.innerHTML = checks
     .map(
       x =>
-        `<div class="check">${x[0]} <b>${x[1]}</b></div>`
+        `<div class="check">${x[0]} <b>${({PASS:"READY",BLOCK:"BLOCKED",WAIT:"WAITING",CHECK:"CHECK"})[x[1]] || x[1]}</b></div>`
     )
     .join("");
 
@@ -881,19 +881,19 @@ async function run() {
           };
 
     const checks = [
-      ["H4 Structure", h4.status],
-      ["H1 Bias", h1.status],
-      ["M15 Setup", m15.status],
-      ["M5 Trigger", m5.status],
-      ["Session", session.status],
-      ["News Filter", news.status],
-      ["Risk Engine", risk.status],
+      ["4-hour trend", h4.status],
+      ["1-hour direction", h1.status],
+      ["15-minute setup", m15.status],
+      ["5-minute entry trigger", m5.status],
+      ["Trading session", session.status],
+      ["High-impact news", news.status],
+      ["Daily risk controls", risk.status],
       [
-        "SL / TP",
+        "Stop loss / take profit",
         levels.status
       ],
       [
-        "R:R",
+        "Reward / risk",
         levels.status === "PASS"
           ? `1:${rules.rr}`
           : "WAIT"
@@ -911,15 +911,15 @@ async function run() {
 
     render(
       [
-        ["H4 Structure", "WAIT"],
-        ["H1 Bias", "WAIT"],
-        ["M15 Setup", "WAIT"],
-        ["M5 Trigger", "WAIT"],
-        ["Session", "CHECK"],
-        ["News Filter", "CHECK"],
-        ["Risk Engine", "WAIT"],
-        ["SL / TP", "WAIT"],
-        ["R:R", "WAIT"]
+        ["4-hour trend", "WAIT"],
+        ["1-hour direction", "WAIT"],
+        ["15-minute setup", "WAIT"],
+        ["5-minute entry trigger", "WAIT"],
+        ["Trading session", "CHECK"],
+        ["High-impact news", "CHECK"],
+        ["Daily risk controls", "WAIT"],
+        ["Stop loss / take profit", "WAIT"],
+        ["Reward / risk", "WAIT"]
       ],
       "WAIT",
       "Live market feed unavailable."
