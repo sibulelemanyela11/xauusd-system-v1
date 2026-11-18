@@ -1,14 +1,14 @@
 <!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Gold Signal Engine</title><meta name="theme-color" content="#080b10"><meta name="description" content="XAUUSD gold signal dashboard and risk controls."><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="stylesheet" href="style.css"></head>
+<title>Gold Signals | XAUUSD</title><meta name="theme-color" content="#080b10"><meta name="description" content="A focused XAUUSD market signal and risk dashboard."><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="stylesheet" href="style.css"></head>
 <body>
-<header><div><h1>XAUUSD <span>GOLD ENGINE</span></h1><p>Gold-only decision system · SAST</p></div><div class="top-actions"><button id="install-app" hidden>Install app</button><button id="enable-alerts">Enable alerts</button></div></header>
+<header><div><h1>GOLD <span>MARKET SIGNALS</span></h1><p>XAUUSD trading dashboard · South Africa time</p></div><div class="top-actions"><button id="install-app" hidden>Install</button><button id="enable-alerts">Notifications</button></div></header>
 <main>
-<section class="hero"><div><small>LIVE DECISION</small><strong id="signal">WAIT</strong><p id="reason">Checking market feeds…</p><p class="updated" id="updated">Waiting for first scan</p></div>
+<section class="hero"><div><small>CURRENT SIGNAL</small><strong id="signal">WAIT</strong><p id="reason">Checking market feeds…</p><p class="updated" id="updated">Waiting for market scan</p></div>
 <div class="grid" id="checks"></div></section>
-<section><h2>Trade Guard</h2><div class="cards"><div>Risk <b>0.5%</b></div><div>Min R:R <b>1:2</b></div><div>Max trades <b>2/day</b></div><div>Daily loss <b>1.5%</b></div></div></section>
-<section><h2>System Rules</h2><ul><li>H4 structure → H1 bias → M15 setup → M5 trigger</li><li>Closed candles only. No repainting.</li><li>High-impact news can block a trade.</li><li>Two losses = stop for the day.</li><li>Risk engine has final veto.</li></ul></section>
-<div class="actions"><button id="refresh">Scan now</button><button id="install-bottom" hidden>Install to home screen</button></div>
-</main><footer>Alerts are advisory only. No trades are placed. Keep this app open for automatic scans and notifications. Live feed availability is verified on each scan.</footer>
+<section><h2>Risk limits</h2><div class="cards"><div>Risk per trade <b>0.5%</b></div><div>Minimum reward / risk <b>1:2</b></div><div>Maximum trades <b>2 per day</b></div><div>Daily loss limit <b>1.5%</b></div></div></section>
+<section><h2>How signals are confirmed</h2><ul><li>4-hour trend → 1-hour direction → 15-minute setup → 5-minute entry trigger</li><li>Closed candles only · No repainting</li><li>High-impact US news can block a signal.</li><li>Two losing trades = stop for the day.</li><li>Risk controls always have the final say.</li></ul></section>
+<div class="actions"><button id="refresh">Run market scan</button><button id="install-bottom" hidden>Install app</button></div>
+</main><footer>Signals are for information only. No trades are placed automatically. Keep the app open for one-minute scans and notifications. Always verify a setup before trading.</footer>
 <script src="pwa.js"></script>
 <script src="app.js"></script></body></html>
