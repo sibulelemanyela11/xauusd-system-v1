@@ -1,0 +1,19 @@
+{
+  "name": "XAUUSD Gold Signal Engine",
+  "short_name": "Gold Engine",
+  "description": "Gold-only trading signal dashboard",
+  "start_url": "/index.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#080b10",
+  "theme_color": "#080b10",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
